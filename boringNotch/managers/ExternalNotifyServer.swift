@@ -16,12 +16,14 @@ final class ExternalNotifyServer: ObservableObject {
     }()
 
     @Published private(set) var latestEvent: ExternalNotifyEvent?
+    @Published private(set) var activityQueue = AgentActivityQueue()
     @Published private(set) var isRunning = false
     let socketURL: URL
 
     private static let logger = os.Logger(subsystem: "theboringteam.boringnotch", category: "ExternalNotify")
     private var listener: ExternalNotifySocketListener?
     private var generation = UUID()
+    private var activityTask: Task<Void, Never>?
 
     init(socketURL: URL = ExternalNotifyServer.defaultSocketURL) {
         self.socketURL = socketURL
@@ -34,7 +36,9 @@ final class ExternalNotifyServer: ObservableObject {
         let listener = ExternalNotifySocketListener(socketURL: socketURL) { [weak self] event in
             Task { @MainActor in
                 guard let self, self.isRunning, self.generation == generation else { return }
+                self.activityQueue.receive(event, at: Date())
                 self.latestEvent = event
+                self.scheduleActivityCycle()
                 Self.logger.info("Decoded notification: \(event.id, privacy: .public) \(event.state.rawValue, privacy: .public)")
             }
         }
@@ -46,9 +50,27 @@ final class ExternalNotifyServer: ObservableObject {
 
     func stop() {
         generation = UUID()
+        activityTask?.cancel()
+        activityTask = nil
+        activityQueue = AgentActivityQueue()
         listener?.stop()
         listener = nil
         isRunning = false
+    }
+
+    private func scheduleActivityCycle() {
+        guard activityTask == nil else { return }
+        activityTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(4))
+                guard let self, !Task.isCancelled else { return }
+                self.activityQueue.advance(at: Date())
+                if self.activityQueue.events.isEmpty {
+                    self.activityTask = nil
+                    return
+                }
+            }
+        }
     }
 }
 

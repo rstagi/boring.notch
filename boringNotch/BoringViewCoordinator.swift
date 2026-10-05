@@ -18,6 +18,7 @@ enum SneakContentType {
     case mic
     case battery
     case download
+    case agent
 }
 
 struct sneakPeek {
@@ -100,8 +101,26 @@ class BoringViewCoordinator: ObservableObject {
     @Published var optionKeyPressed: Bool = true
     private var accessibilityObserver: Any?
     private var hudReplacementCancellable: AnyCancellable?
+    private var agentActivityCancellable: AnyCancellable?
+    @Published private(set) var agentActivityQueue = AgentActivityQueue()
+
+    var showsAgentActivity: Bool {
+        agentActivityQueue.currentEvent != nil && (!sneakPeek.show || sneakPeek.type == .agent)
+    }
 
     private init() {
+        agentActivityCancellable = ExternalNotifyServer.shared.$activityQueue
+            .sink { [weak self] queue in
+                guard let self else { return }
+                self.agentActivityQueue = queue
+                if queue.currentEvent != nil {
+                    if !self.sneakPeek.show || self.sneakPeek.type == .agent {
+                        self.toggleSneakPeek(status: true, type: .agent)
+                    }
+                } else if self.sneakPeek.type == .agent {
+                    self.toggleSneakPeek(status: false, type: .agent)
+                }
+            }
         // Perform migration from name-based to UUID-based storage
         if preferredScreenUUID == nil, let legacyName = legacyPreferredScreenName {
             // Try to find screen by name and migrate to UUID
@@ -210,19 +229,14 @@ class BoringViewCoordinator: ObservableObject {
         icon: String = ""
     ) {
         sneakPeekDuration = duration
-        if type != .music {
+        if type != .music && type != .agent {
             // close()
             if !Defaults[.hudReplacement] {
                 return
             }
         }
-        Task { @MainActor in
-            withAnimation(.smooth) {
-                self.sneakPeek.show = status
-                self.sneakPeek.type = type
-                self.sneakPeek.value = value
-                self.sneakPeek.icon = icon
-            }
+        withAnimation(.smooth) {
+            sneakPeek = .init(show: status, type: type, value: value, icon: icon)
         }
 
         if type == .mic {
@@ -251,7 +265,7 @@ class BoringViewCoordinator: ObservableObject {
 
     @Published var sneakPeek: sneakPeek = .init() {
         didSet {
-            if sneakPeek.show {
+            if sneakPeek.show && sneakPeek.type != .agent {
                 scheduleSneakPeekHide(after: sneakPeekDuration)
             } else {
                 sneakPeekTask?.cancel()
