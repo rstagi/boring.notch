@@ -136,7 +136,7 @@ struct ContentView: View {
                         handleHover(hovering)
                     }
                     .onTapGesture {
-                        if vm.notchState == .closed, coordinator.showsAttentionAgentPeek,
+                        if vm.notchState == .closed, !vm.hideOnClosed, coordinator.showsAttentionAgentPeek,
                            let event = coordinator.agentActivityQueue.currentEvent {
                             coordinator.focusAgentActivity(id: event.id)
                         } else {
@@ -293,7 +293,7 @@ struct ContentView: View {
                             .frame(width: 76, alignment: .trailing)
                         }
                         .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
-                      } else if coordinator.showsAttentionAgentPeek && vm.notchState == .closed {
+                      } else if coordinator.showsAttentionAgentPeek && vm.notchState == .closed && !vm.hideOnClosed {
                           Color.clear
                               .frame(width: agentPeekWidth, height: vm.effectiveClosedNotchHeight)
                       } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .agent) && vm.notchState == .closed {
@@ -302,7 +302,7 @@ struct ContentView: View {
                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                           MusicLiveActivity()
                               .frame(alignment: .center)
-                      } else if coordinator.showsAgentWorkingIndicator, let event = coordinator.agentActivityQueue.currentEvent, vm.notchState == .closed {
+                      } else if coordinator.showsAgentWorkingIndicator, let event = coordinator.agentActivityQueue.currentEvent, vm.notchState == .closed, !vm.hideOnClosed {
                           AgentActivityView(event: event, count: coordinator.agentActivityQueue.visibleCount, notchWidth: vm.closedNotchSize.width) {
                               coordinator.focusAgentActivity(id: event.id)
                           }
@@ -317,16 +317,21 @@ struct ContentView: View {
                            Rectangle().fill(.clear).frame(width: vm.closedNotchSize.width - 20, height: vm.effectiveClosedNotchHeight)
                        }
 
-                      if coordinator.showsAttentionAgentPeek, let event = coordinator.agentActivityQueue.currentEvent, vm.notchState == .closed {
+                      if coordinator.showsAttentionAgentPeek, let event = coordinator.agentActivityQueue.currentEvent, vm.notchState == .closed, !vm.hideOnClosed {
+                          let revision = coordinator.agentActivityQueue.revision(of: event.id)
                           AgentActivityView(event: event, count: coordinator.agentActivityQueue.visibleCount, notchWidth: vm.closedNotchSize.width) {
                               coordinator.focusAgentActivity(id: event.id)
                           }
                               .frame(width: agentPeekWidth)
                               .transition(.opacity)
-                              // Idle expiry starts only once the peek is actually rendered;
-                              // keyed on id+state so same-id waiting -> idle re-marks while mounted.
-                              .task(id: "\(event.id)|\(event.state.rawValue)") {
-                                  ExternalNotifyServer.shared.markPresented(id: event.id)
+                              // Idle expiry counts only rendered time: keyed on id+revision so
+                              // same-id updates re-present; unmount (open, HUD, cycling) pauses it.
+                              .task(id: "\(event.id)|\(revision)") {
+                                  ExternalNotifyServer.shared.markPresented(id: event.id, revision: revision)
+                                  while !Task.isCancelled {
+                                      try? await Task.sleep(for: .seconds(3600))
+                                  }
+                                  ExternalNotifyServer.shared.markHidden(id: event.id, revision: revision)
                               }
                       } else if coordinator.sneakPeek.show {
                           if (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .agent) && !Defaults[.inlineHUD] && vm.notchState == .closed {
@@ -551,8 +556,9 @@ struct ContentView: View {
                 haptics.toggle()
             }
             
+            // Sticky agent peeks must not block hover-open (only transient peeks do).
             guard vm.notchState == .closed,
-                  !coordinator.sneakPeek.show,
+                  !(coordinator.sneakPeek.show && coordinator.sneakPeek.type != .agent),
                   Defaults[.openNotchOnHover] else { return }
             
             hoverTask = Task {
@@ -562,7 +568,7 @@ struct ContentView: View {
                 await MainActor.run {
                     guard self.vm.notchState == .closed,
                           self.isHovering,
-                          !self.coordinator.sneakPeek.show else { return }
+                          !(self.coordinator.sneakPeek.show && self.coordinator.sneakPeek.type != .agent) else { return }
                     
                     self.doOpen()
                 }

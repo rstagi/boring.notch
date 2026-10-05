@@ -42,9 +42,16 @@ final class ExternalNotifyServer: ObservableObject {
     }
 
     /// Called by the view when a peek is actually on screen; republishes only when a deadline starts.
-    func markPresented(id: String) {
+    func markPresented(id: String, revision: Int) {
         var queue = activityQueue
-        guard queue.markPresented(id: id, at: Date()) else { return }
+        guard queue.markPresented(id: id, revision: revision, at: Date()) else { return }
+        activityQueue = queue
+    }
+
+    /// Called by the view when a presented peek leaves the screen; republishes only when a deadline pauses.
+    func markHidden(id: String, revision: Int) {
+        var queue = activityQueue
+        guard queue.markHidden(id: id, revision: revision, at: Date()) else { return }
         activityQueue = queue
     }
 
