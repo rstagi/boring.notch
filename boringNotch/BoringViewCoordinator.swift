@@ -108,6 +108,12 @@ class BoringViewCoordinator: ObservableObject {
         agentActivityQueue.currentEvent != nil && (!sneakPeek.show || sneakPeek.type == .agent)
     }
 
+    func focusAgentActivity(id: String) {
+        ExternalNotifyServer.shared.focus(id: id) { command in
+            try await XPCHelperClient.shared.runExternalNotificationAction(command)
+        }
+    }
+
     private init() {
         agentActivityCancellable = ExternalNotifyServer.shared.$activityQueue
             .sink { [weak self] queue in

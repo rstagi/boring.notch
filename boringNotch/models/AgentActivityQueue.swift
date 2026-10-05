@@ -25,6 +25,13 @@ struct AgentActivityQueue {
         startIdleDeadline(at: date)
     }
 
+    mutating func dismiss(id: String, at date: Date) {
+        events.removeAll { $0.id == id }
+        idleDeadlines[id] = nil
+        currentID = currentEvent?.id
+        startIdleDeadline(at: date)
+    }
+
     mutating func advance(at date: Date) {
         events.removeAll { event in
             if let deadline = idleDeadlines[event.id], deadline <= date {
