@@ -24,6 +24,9 @@ struct AgentActivityView: View {
                     .symbolEffect(.pulse, options: .repeating)
                     .opacity(0.6)
                     .frame(width: 16, height: 16)
+                    .contentShape(Rectangle())
+                    // Icon clicks focus; clear areas fall through to the notch (opens it).
+                    .onTapGesture { onFocus() }
                 Color.clear.frame(width: max(0, notchWidth - 20))
                 Color.clear.frame(width: 16, height: 16)
             }

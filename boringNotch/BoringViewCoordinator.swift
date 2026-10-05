@@ -238,7 +238,8 @@ class BoringViewCoordinator: ObservableObject {
     /// Asserts the .agent peek only for attention states; working never holds the transient channel.
     private func syncAgentPeek() {
         if let event = agentActivityQueue.currentEvent, event.state != .working {
-            if !sneakPeek.show || sneakPeek.type == .agent {
+            if sneakPeek.show && sneakPeek.type == .agent { return }
+            if !sneakPeek.show {
                 toggleSneakPeek(status: true, type: .agent)
             }
         } else if sneakPeek.show && sneakPeek.type == .agent {
@@ -292,8 +293,9 @@ class BoringViewCoordinator: ObservableObject {
             } else {
                 sneakPeekTask?.cancel()
             }
-            // A transient peek ended: restore any pending attention agent peek immediately.
-            if oldValue.show && oldValue.type != .agent && !sneakPeek.show {
+            // Any shown peek ended (transient expiry or close()): restore a pending attention
+            // agent peek immediately. Terminates: syncAgentPeek only re-shows, never re-hides here.
+            if oldValue.show && !sneakPeek.show {
                 syncAgentPeek()
             }
         }

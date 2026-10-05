@@ -371,7 +371,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.coordinator.toggleExpandingView(status: newStatus, type: .music)
             } else {
                 self.coordinator.toggleSneakPeek(
-                    status: !self.coordinator.sneakPeek.show,
+                    status: !(self.coordinator.sneakPeek.show && self.coordinator.sneakPeek.type == .music),
                     type: .music,
                     duration: 3.0
                 )
