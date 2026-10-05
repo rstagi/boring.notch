@@ -8,6 +8,7 @@ struct AgentActivityQueueTests {
         try expiresIdleButRetainsWaiting()
         try prioritizesAttentionOverWorking()
         try givesEveryQueuedIdleEventATurn()
+        try dismissesOnlyTheSelectedID()
         print("PASS: agent activity queue")
     }
 
@@ -70,6 +71,20 @@ struct AgentActivityQueueTests {
         expect(queue.currentEvent?.id == "b", "Second completion must get its turn")
         queue.advance(at: now.addingTimeInterval(8))
         expect(queue.currentEvent?.id == "c", "Queued completions must not expire before their first turn")
+    }
+
+    static func dismissesOnlyTheSelectedID() throws {
+        var queue = AgentActivityQueue()
+        let now = Date(timeIntervalSince1970: 100)
+        queue.receive(try event("a", state: "waiting"), at: now)
+        queue.receive(try event("b", state: "idle"), at: now)
+        queue.dismiss(id: "a", at: now.addingTimeInterval(20))
+        expect(queue.events.map(\.id) == ["b"], "Dismissal must remove only the selected ID")
+        expect(queue.currentEvent?.id == "b", "The next queued event must become visible")
+        queue.advance(at: now.addingTimeInterval(24))
+        expect(queue.currentEvent?.id == "b", "A newly visible idle event must get its full display time")
+        queue.advance(at: now.addingTimeInterval(28))
+        expect(queue.currentEvent == nil, "The last event must expire normally after dismissal")
     }
 
     static func event(_ id: String, state: String, message: String = "Needs input") throws -> ExternalNotifyEvent {

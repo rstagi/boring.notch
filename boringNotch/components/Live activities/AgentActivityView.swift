@@ -5,8 +5,17 @@ struct AgentActivityView: View {
     let event: ExternalNotifyEvent
     let count: Int
     let notchWidth: CGFloat
+    let onFocus: () -> Void
 
     var body: some View {
+        content
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Focus agent tab and dismiss notification")
+            .accessibilityAction { onFocus() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if event.state == .working {
             HStack(spacing: 8) {
                 Image(systemName: "circle.dotted")

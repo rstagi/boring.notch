@@ -115,11 +115,13 @@ For a local check with the app running:
 printf '%s\n' '{"v":1,"id":"ws:@12","source":"ws","state":"waiting","prev":"working","title":"ws","message":"api needs input","detail":"Choose a deployment target","agent":"codex","repo":"api","branch":"feat/login","focused":false,"sound":"waiting","actions":[{"id":"focus","label":"Focus tab","command":"tmux select-window -t @12"}],"ts":1791182700}' | nc -U -w 1 "$HOME/Library/Application Support/boringNotch/notify.sock"
 ```
 
-Decoded events are published through `ExternalNotifyServer.shared.latestEvent` on the main actor and logged in Console under the `ExternalNotify` category. This receiver stores actions without executing them. The sandbox remains enabled, with exceptions limited to the socket directory and binding/probing this socket.
+Decoded events are published through `ExternalNotifyServer.shared.latestEvent` on the main actor and logged in Console under the `ExternalNotify` category. Clicking an agent activity runs its `focus` action command with `/bin/zsh -lc` and dismisses that ID immediately; other queued tabs remain. Commands launch asynchronously through the existing unsandboxed XPC helper, without waiting for exit. The main app's sandbox and socket exceptions remain unchanged. Events without a `focus` action are simply dismissed.
+
+Action commands are trusted shell input from the user-only local socket. This is intended for the local fork; an upstream API should consider URL actions instead of arbitrary shell commands.
 
 In the closed notch, `waiting` and `idle` show a state icon, title, and message. Events with the same `id` update in place; multiple tabs cycle every four seconds. Waiting stays until another event for that ID arrives. Idle peeks expire eight seconds after their first display (on the next cycle), so queued completions get a turn. Working tabs show only a subtle side indicator when no attention peeks remain. External activity does not require the system HUD replacement setting; transient music/system HUD peeks can briefly take precedence.
 
-Run the queue behavior checks with `sh tests/agent-activity-queue.sh` (Xcode command-line tools required).
+Run the behavior checks with `sh tests/agent-activity-queue.sh`, `sh tests/external-notification-actions.sh`, and `sh tests/external-notify-server.sh` (Xcode command-line tools required).
 
 ## 📋 Roadmap
 - [x] Playback live activity 🎧
@@ -212,4 +214,3 @@ For a full list of licenses and attributions, please see the [Third-Party Licens
 
 - **SwiftUI**: For making us look like coding wizards.
 - **You**: For being awesome and checking out **boring.notch**!
-

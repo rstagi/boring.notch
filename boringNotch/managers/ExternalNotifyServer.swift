@@ -20,13 +20,26 @@ final class ExternalNotifyServer: ObservableObject {
     @Published private(set) var isRunning = false
     let socketURL: URL
 
-    private static let logger = os.Logger(subsystem: "theboringteam.boringnotch", category: "ExternalNotify")
+    private nonisolated static let logger = os.Logger(subsystem: "theboringteam.boringnotch", category: "ExternalNotify")
     private var listener: ExternalNotifySocketListener?
     private var generation = UUID()
     private var activityTask: Task<Void, Never>?
 
     init(socketURL: URL = ExternalNotifyServer.defaultSocketURL) {
         self.socketURL = socketURL
+    }
+
+    func focus(id: String, runCommand: @escaping @Sendable (String) async throws -> Void) {
+        guard let event = activityQueue.events.first(where: { $0.id == id }) else { return }
+        if let action = event.actions.first(where: { $0.id == "focus" }) {
+            Task.detached(priority: .userInitiated) {
+                do { try await runCommand(action.command) }
+                catch {
+                    Self.logger.error("Focus action could not launch: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
+        activityQueue.dismiss(id: id, at: Date())
     }
 
     func start() throws {

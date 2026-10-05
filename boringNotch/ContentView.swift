@@ -136,7 +136,12 @@ struct ContentView: View {
                         handleHover(hovering)
                     }
                     .onTapGesture {
-                        doOpen()
+                        if vm.notchState == .closed, coordinator.showsAgentActivity,
+                           let event = coordinator.agentActivityQueue.currentEvent {
+                            coordinator.focusAgentActivity(id: event.id)
+                        } else {
+                            doOpen()
+                        }
                     }
                     .conditionalModifier(Defaults[.enableGestures]) { view in
                         view
@@ -290,7 +295,9 @@ struct ContentView: View {
                         .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
                       } else if coordinator.showsAgentActivity, let event = coordinator.agentActivityQueue.currentEvent, vm.notchState == .closed {
                           if event.state == .working {
-                              AgentActivityView(event: event, count: coordinator.agentActivityQueue.visibleCount, notchWidth: vm.closedNotchSize.width)
+                              AgentActivityView(event: event, count: coordinator.agentActivityQueue.visibleCount, notchWidth: vm.closedNotchSize.width) {
+                                  coordinator.focusAgentActivity(id: event.id)
+                              }
                                   .frame(height: max(22, vm.effectiveClosedNotchHeight))
                           } else {
                               Color.clear
@@ -313,7 +320,9 @@ struct ContentView: View {
                        }
 
                       if coordinator.showsAgentActivity, let event = coordinator.agentActivityQueue.currentEvent, event.state != .working, vm.notchState == .closed {
-                          AgentActivityView(event: event, count: coordinator.agentActivityQueue.visibleCount, notchWidth: vm.closedNotchSize.width)
+                          AgentActivityView(event: event, count: coordinator.agentActivityQueue.visibleCount, notchWidth: vm.closedNotchSize.width) {
+                              coordinator.focusAgentActivity(id: event.id)
+                          }
                               .frame(width: agentPeekWidth)
                               .transition(.opacity)
                       } else if coordinator.sneakPeek.show {
