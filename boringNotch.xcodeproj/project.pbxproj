@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E50A00020000000000000001 /* AgentActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50A00020000000000000002 /* AgentActivityView.swift */; };
+		E50A00010000000000000001 /* AgentActivityQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50A00010000000000000002 /* AgentActivityQueue.swift */; };
+		E40A00020000000000000001 /* ExternalNotifyServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E40A00020000000000000002 /* ExternalNotifyServer.swift */; };
+		E40A00010000000000000001 /* ExternalNotifyEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E40A00010000000000000002 /* ExternalNotifyEvent.swift */; };
 		1100290C2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */; };
 		110029272E84FD4C00035A57 /* TemporaryFileStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */; };
 		1100292A2E8691B400035A57 /* FileShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029292E8691B400035A57 /* FileShareView.swift */; };
@@ -181,6 +185,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		E50A00020000000000000002 /* AgentActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentActivityView.swift; sourceTree = "<group>"; };
+		E50A00010000000000000002 /* AgentActivityQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentActivityQueue.swift; sourceTree = "<group>"; };
+		E40A00020000000000000002 /* ExternalNotifyServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalNotifyServer.swift; sourceTree = "<group>"; };
+		E40A00010000000000000002 /* ExternalNotifyEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalNotifyEvent.swift; sourceTree = "<group>"; };
 		1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSItemProvider+LoadHelpers.swift"; sourceTree = "<group>"; };
 		110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryFileStorageService.swift; sourceTree = "<group>"; };
 		110029292E8691B400035A57 /* FileShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileShareView.swift; sourceTree = "<group>"; };
@@ -510,6 +518,7 @@
 		147163B52C5D804B0068B555 /* managers */ = {
 			isa = PBXGroup;
 			children = (
+				E40A00020000000000000002 /* ExternalNotifyServer.swift */,
 				11D58EA12E760AE100FA8377 /* ImageService.swift */,
 				F38DE6472D8243E2008B5C6D /* BatteryActivityManager.swift */,
 				112FB7342CCF16F70015238C /* NotchSpaceManager.swift */,
@@ -626,6 +635,8 @@
 		14D570C72C5F38760011E668 /* models */ = {
 			isa = PBXGroup;
 			children = (
+				E50A00010000000000000002 /* AgentActivityQueue.swift */,
+				E40A00010000000000000002 /* ExternalNotifyEvent.swift */,
 				11F748812ECB07A400F841DB /* MusicControlButton.swift */,
 				118D1FD02E98FF5F00A2FF63 /* SharingStateManager.swift */,
 				1163988E2DF5CC870052E6AF /* CalendarModel.swift */,
@@ -730,6 +741,7 @@
 		B18654312C6F45AE000B926A /* Live activities */ = {
 			isa = PBXGroup;
 			children = (
+				E50A00020000000000000002 /* AgentActivityView.swift */,
 				115C12EB2ED3D003009754CA /* OpenNotchHUD.swift */,
 				14D570CC2C5F4BB70011E668 /* BoringBattery.swift */,
 				B1C974332C642B6D0000E707 /* MarqueeTextView.swift */,
@@ -905,6 +917,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E40A00020000000000000001 /* ExternalNotifyServer.swift in Sources */,
+				E50A00010000000000000001 /* AgentActivityQueue.swift in Sources */,
+				E50A00020000000000000001 /* AgentActivityView.swift in Sources */,
+				E40A00010000000000000001 /* ExternalNotifyEvent.swift in Sources */,
 				115C12EC2ED3D003009754CA /* OpenNotchHUD.swift in Sources */,
 				14C08BB92C8DE4B1000F8AA0 /* BoringCalendar.swift in Sources */,
 				5955950D2E900ED800C66711 /* ApplicationRelauncher.swift in Sources */,

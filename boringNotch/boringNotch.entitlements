@@ -20,6 +20,14 @@
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+	<array>
+		<string>/Library/Application Support/boringNotch/</string>
+	</array>
+	<key>com.apple.security.temporary-exception.sbpl</key>
+	<array>
+		<string>(allow network-bind network-outbound (home-literal "/Library/Application Support/boringNotch/notify.sock"))</string>
+	</array>
 	<key>com.apple.security.temporary-exception.apple-events</key>
 	<array>
 		<string>com.spotify.client</string>

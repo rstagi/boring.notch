@@ -105,6 +105,24 @@ brew install --cask TheBoredTeam/boring-notch/boring-notch
 - Use the controls to manage your music like a rockstar.
 - Click the star in your menu bar to customize your notch to your heart's content.
 
+### External notifications (fork)
+
+This fork enables **External notifications** by default. Change it under **Settings → General → System features**. Enabling starts a Unix socket receiver at `~/Library/Application Support/boringNotch/notify.sock`; disabling stops it, removes the socket, and clears queued activities. The setting persists across launches, and quitting removes the socket. The directory is user-only (0700), and the socket is user-only (0600). Send one v1 JSON object per line (NDJSON); unknown fields are ignored, unsupported versions and malformed events are rejected. Each line is limited to 64 KiB. The optional `seq` field (integer, microseconds since epoch, one per producer hook invocation) orders events per `id`; `ts` is informational.
+
+For a local check with the app running:
+
+```sh
+printf '%s\n' '{"v":1,"id":"ws:@12","source":"ws","state":"waiting","prev":"working","title":"ws","message":"api needs input","detail":"Choose a deployment target","agent":"codex","repo":"api","branch":"feat/login","focused":false,"sound":"waiting","actions":[{"id":"focus","label":"Focus tab","command":"tmux select-window -t @12"}],"ts":1791182700,"seq":1791182700000000}' | nc -U -w 1 "$HOME/Library/Application Support/boringNotch/notify.sock"
+```
+
+Decoded events are queued in `ExternalNotifyServer.shared.activityQueue` on the main actor and logged in Console under the `ExternalNotify` category. Clicking a waiting/idle peek or the working indicator icon runs its `focus` action command with `/bin/zsh -lc` and dismisses that ID immediately; other queued tabs remain. Commands launch asynchronously through the existing unsandboxed XPC helper, without waiting for exit. The main app stays sandboxed; this fork adds user-only socket path entitlement exceptions for the receiver. Events without a `focus` action are simply dismissed.
+
+Action commands are trusted shell input from the user-only local socket. This is intended for the local fork; an upstream API should consider URL actions instead of arbitrary shell commands.
+
+In the closed notch, `waiting` and `idle` show a state icon, title, and message. Events with the same `id` update in place; an event whose `seq` is not greater than the last applied `seq` for that `id` is dropped (even after dismissal, until the receiver is restarted), and events without `seq` always apply. Multiple tabs cycle every four seconds. Waiting stays until another event for that ID arrives. Idle peeks expire after eight seconds of actual display; same-id updates restart it, and time hidden (open notch, music/HUD peek, fullscreen hide, other tabs' turn) doesn't count. Working tabs show only a subtle side indicator when no attention peeks remain. External activity does not require the system HUD replacement setting; transient music/system HUD peeks can briefly take precedence.
+
+Run the behavior checks with `sh tests/agent-activity-queue.sh`, `sh tests/external-notification-actions.sh`, and `sh tests/external-notify-server.sh` (Xcode command-line tools required).
+
 ## 📋 Roadmap
 - [x] Playback live activity 🎧
 - [x] Calendar integration 📆
@@ -196,4 +214,3 @@ For a full list of licenses and attributions, please see the [Third-Party Licens
 
 - **SwiftUI**: For making us look like coding wizards.
 - **You**: For being awesome and checking out **boring.notch**!
-
