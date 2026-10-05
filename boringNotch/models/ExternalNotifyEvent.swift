@@ -27,10 +27,12 @@ struct ExternalNotifyEvent: Codable, Equatable, Identifiable, Sendable {
     let sound: String
     let actions: [Action]
     let ts: Double
+    /// Optional per-hook ordering key (microseconds since epoch); `ts` is informational.
+    let seq: Int64?
 
     private enum CodingKeys: String, CodingKey {
         case v, id, source, state, prev, title, message, detail
-        case agent, repo, branch, focused, sound, actions, ts
+        case agent, repo, branch, focused, sound, actions, ts, seq
     }
 
     init(from decoder: Decoder) throws {
@@ -54,5 +56,6 @@ struct ExternalNotifyEvent: Codable, Equatable, Identifiable, Sendable {
         sound = try values.decode(String.self, forKey: .sound)
         actions = try values.decode([Action].self, forKey: .actions)
         ts = try values.decode(Double.self, forKey: .ts)
+        seq = try values.decodeIfPresent(Int64.self, forKey: .seq)
     }
 }

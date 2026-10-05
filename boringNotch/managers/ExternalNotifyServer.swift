@@ -15,7 +15,6 @@ final class ExternalNotifyServer: ObservableObject {
             .appendingPathComponent("notify.sock")
     }()
 
-    @Published private(set) var latestEvent: ExternalNotifyEvent?
     @Published private(set) var activityQueue = AgentActivityQueue()
     @Published private(set) var isRunning = false
     let socketURL: URL
@@ -42,6 +41,13 @@ final class ExternalNotifyServer: ObservableObject {
         activityQueue.dismiss(id: id, at: Date())
     }
 
+    /// Called by the view when a peek is actually on screen; republishes only when a deadline starts.
+    func markPresented(id: String) {
+        var queue = activityQueue
+        guard queue.markPresented(id: id, at: Date()) else { return }
+        activityQueue = queue
+    }
+
     func setEnabled(_ enabled: Bool) throws {
         if enabled { try start() }
         else { stop() }
@@ -55,7 +61,6 @@ final class ExternalNotifyServer: ObservableObject {
             Task { @MainActor in
                 guard let self, self.isRunning, self.generation == generation else { return }
                 self.activityQueue.receive(event, at: Date())
-                self.latestEvent = event
                 self.scheduleActivityCycle()
                 Self.logger.info("Decoded notification: \(event.id, privacy: .public) \(event.state.rawValue, privacy: .public)")
             }

@@ -9,6 +9,12 @@ struct AgentActivityQueueTests {
         try prioritizesAttentionOverWorking()
         try givesEveryQueuedIdleEventATurn()
         try dismissesOnlyTheSelectedID()
+        try keepsIdleUntilPresented()
+        try dropsReorderedSeq()
+        try dropsEqualSeq()
+        try appliesMissingSeqAsNewest()
+        try dropsStaleSeqAfterDismiss()
+        try decodesOptionalSeq()
         print("PASS: agent activity queue")
     }
 
@@ -39,9 +45,11 @@ struct AgentActivityQueueTests {
         let now = Date(timeIntervalSince1970: 100)
         queue.receive(try event("a", state: "idle"), at: now)
         queue.receive(try event("b", state: "waiting"), at: now)
+        queue.markPresented(id: "a", at: now)
         queue.advance(at: now.addingTimeInterval(8))
         expect(queue.events.map(\.id) == ["b"], "Idle peeks expire after eight seconds; waiting remains")
         queue.receive(try event("b", state: "idle"), at: now.addingTimeInterval(8))
+        queue.markPresented(id: "b", at: now.addingTimeInterval(8))
         queue.advance(at: now.addingTimeInterval(16))
         expect(queue.currentEvent == nil, "A later idle event must release sticky waiting")
     }
@@ -55,6 +63,7 @@ struct AgentActivityQueueTests {
         queue.receive(try event("c", state: "idle"), at: now)
         queue.advance(at: now.addingTimeInterval(4))
         expect(queue.currentEvent?.id == "c", "Working IDs must not interrupt attention peeks")
+        queue.markPresented(id: "c", at: now.addingTimeInterval(4))
         queue.receive(try event("b", state: "working"), at: now.addingTimeInterval(4))
         queue.advance(at: now.addingTimeInterval(12))
         expect(queue.currentEvent?.state == .working, "Working indicator returns after attention clears")
@@ -67,8 +76,10 @@ struct AgentActivityQueueTests {
         for id in ["a", "b", "c"] {
             queue.receive(try event(id, state: "idle"), at: now)
         }
+        queue.markPresented(id: "a", at: now)
         queue.advance(at: now.addingTimeInterval(4))
         expect(queue.currentEvent?.id == "b", "Second completion must get its turn")
+        queue.markPresented(id: "b", at: now.addingTimeInterval(4))
         queue.advance(at: now.addingTimeInterval(8))
         expect(queue.currentEvent?.id == "c", "Queued completions must not expire before their first turn")
     }
@@ -81,19 +92,83 @@ struct AgentActivityQueueTests {
         queue.dismiss(id: "a", at: now.addingTimeInterval(20))
         expect(queue.events.map(\.id) == ["b"], "Dismissal must remove only the selected ID")
         expect(queue.currentEvent?.id == "b", "The next queued event must become visible")
+        queue.markPresented(id: "b", at: now.addingTimeInterval(20))
         queue.advance(at: now.addingTimeInterval(24))
         expect(queue.currentEvent?.id == "b", "A newly visible idle event must get its full display time")
         queue.advance(at: now.addingTimeInterval(28))
         expect(queue.currentEvent == nil, "The last event must expire normally after dismissal")
     }
 
-    static func event(_ id: String, state: String, message: String = "Needs input") throws -> ExternalNotifyEvent {
-        let payload: [String: Any] = [
+    static func keepsIdleUntilPresented() throws {
+        var queue = AgentActivityQueue()
+        let now = Date(timeIntervalSince1970: 100)
+        queue.receive(try event("a", state: "idle"), at: now)
+        queue.receive(try event("b", state: "waiting"), at: now)
+        queue.markPresented(id: "b", at: now)
+        for offset in stride(from: 4.0, through: 60, by: 4) {
+            queue.advance(at: now.addingTimeInterval(offset))
+        }
+        expect(queue.events.count == 2, "Idle must not expire before it is displayed")
+        queue.dismiss(id: "b", at: now.addingTimeInterval(60))
+        queue.markPresented(id: "a", at: now.addingTimeInterval(61))
+        queue.advance(at: now.addingTimeInterval(68))
+        expect(queue.currentEvent?.id == "a", "Idle must stay for its full display time")
+        queue.advance(at: now.addingTimeInterval(69))
+        expect(queue.currentEvent == nil, "Idle must expire eight seconds after first display")
+    }
+
+    static func dropsReorderedSeq() throws {
+        var queue = AgentActivityQueue()
+        let now = Date(timeIntervalSince1970: 100)
+        queue.receive(try event("a", state: "waiting", seq: 200), at: now)
+        queue.receive(try event("a", state: "working", seq: 100), at: now)
+        expect(queue.currentEvent?.state == .waiting, "Older seq must not replace newer one")
+    }
+
+    static func dropsEqualSeq() throws {
+        var queue = AgentActivityQueue()
+        let now = Date(timeIntervalSince1970: 100)
+        queue.receive(try event("a", state: "waiting", seq: 200), at: now)
+        queue.receive(try event("a", state: "idle", seq: 200), at: now)
+        expect(queue.currentEvent?.state == .waiting, "Duplicate seq must be dropped")
+    }
+
+    static func appliesMissingSeqAsNewest() throws {
+        var queue = AgentActivityQueue()
+        let now = Date(timeIntervalSince1970: 100)
+        queue.receive(try event("a", state: "waiting", seq: 200), at: now)
+        queue.receive(try event("a", state: "idle"), at: now)
+        expect(queue.currentEvent?.state == .idle, "Events without seq must always apply")
+        queue.receive(try event("a", state: "working", seq: 150), at: now)
+        expect(queue.currentEvent?.state == .idle, "Missing seq must not lower the last applied seq")
+    }
+
+    static func dropsStaleSeqAfterDismiss() throws {
+        var queue = AgentActivityQueue()
+        let now = Date(timeIntervalSince1970: 100)
+        queue.receive(try event("a", state: "waiting", seq: 200), at: now)
+        queue.dismiss(id: "a", at: now)
+        queue.receive(try event("a", state: "working", seq: 100), at: now)
+        expect(queue.events.isEmpty, "Stale seq for a dismissed ID must be dropped")
+        queue.receive(try event("a", state: "idle", seq: 300), at: now)
+        expect(queue.currentEvent?.state == .idle, "Newer seq after dismissal must apply")
+    }
+
+    static func decodesOptionalSeq() throws {
+        let withSeq = try event("a", state: "idle", seq: 1_791_182_700_123_456)
+        let withoutSeq = try event("a", state: "idle")
+        expect(withSeq.seq == 1_791_182_700_123_456, "seq must decode")
+        expect(withoutSeq.seq == nil, "seq must be optional")
+    }
+
+    static func event(_ id: String, state: String, message: String = "Needs input", seq: Int64? = nil) throws -> ExternalNotifyEvent {
+        var payload: [String: Any] = [
             "v": 1, "id": id, "source": "ws", "state": state, "prev": "working",
             "title": "ws", "message": message, "detail": "", "agent": "codex",
             "repo": "api", "branch": "main", "focused": false, "sound": "",
             "actions": [], "ts": 100
         ]
+        if let seq { payload["seq"] = seq }
         return try JSONDecoder().decode(ExternalNotifyEvent.self, from: JSONSerialization.data(withJSONObject: payload))
     }
 
