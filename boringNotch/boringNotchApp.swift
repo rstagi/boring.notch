@@ -73,6 +73,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        ExternalNotifyServer.shared.stop()
         NotificationCenter.default.removeObserver(self)
         if let observer = screenLockedObserver {
             DistributedNotificationCenter.default().removeObserver(observer)
@@ -280,6 +281,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        do {
+            try ExternalNotifyServer.shared.start()
+        } catch {
+            NSLog("External notifications could not start: %@", error.localizedDescription)
+        }
 
         NotificationCenter.default.addObserver(
             self,

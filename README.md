@@ -105,6 +105,18 @@ brew install --cask TheBoredTeam/boring-notch/boring-notch
 - Use the controls to manage your music like a rockstar.
 - Click the star in your menu bar to customize your notch to your heart's content.
 
+### External notifications (fork)
+
+This fork starts a Unix socket receiver at `~/Library/Application Support/boringNotch/notify.sock` on launch and removes its socket on quit. The directory is user-only (0700), and the socket is user-only (0600). Send one v1 JSON object per line (NDJSON); unknown fields are ignored, unsupported versions and malformed events are rejected. Each line is limited to 64 KiB.
+
+For a local check with the app running:
+
+```sh
+printf '%s\n' '{"v":1,"id":"ws:@12","source":"ws","state":"waiting","prev":"working","title":"ws","message":"api needs input","detail":"Choose a deployment target","agent":"codex","repo":"api","branch":"feat/login","focused":false,"sound":"waiting","actions":[{"id":"focus","label":"Focus tab","command":"tmux select-window -t @12"}],"ts":1791182700}' | nc -U -w 1 "$HOME/Library/Application Support/boringNotch/notify.sock"
+```
+
+Decoded events are published through `ExternalNotifyServer.shared.latestEvent` on the main actor and logged in Console under the `ExternalNotify` category. This receiver stores actions without executing them. The sandbox remains enabled, with exceptions limited to the socket directory and binding/probing this socket.
+
 ## 📋 Roadmap
 - [x] Playback live activity 🎧
 - [x] Calendar integration 📆
