@@ -136,7 +136,7 @@ struct ContentView: View {
                         handleHover(hovering)
                     }
                     .onTapGesture {
-                        if vm.notchState == .closed, coordinator.showsAgentActivity,
+                        if vm.notchState == .closed, coordinator.showsAttentionAgentPeek,
                            let event = coordinator.agentActivityQueue.currentEvent {
                             coordinator.focusAgentActivity(id: event.id)
                         } else {
@@ -293,22 +293,20 @@ struct ContentView: View {
                             .frame(width: 76, alignment: .trailing)
                         }
                         .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
-                      } else if coordinator.showsAgentActivity, let event = coordinator.agentActivityQueue.currentEvent, vm.notchState == .closed {
-                          if event.state == .working {
-                              AgentActivityView(event: event, count: coordinator.agentActivityQueue.visibleCount, notchWidth: vm.closedNotchSize.width) {
-                                  coordinator.focusAgentActivity(id: event.id)
-                              }
-                                  .frame(height: max(22, vm.effectiveClosedNotchHeight))
-                          } else {
-                              Color.clear
-                                  .frame(width: agentPeekWidth, height: vm.effectiveClosedNotchHeight)
-                          }
+                      } else if coordinator.showsAttentionAgentPeek && vm.notchState == .closed {
+                          Color.clear
+                              .frame(width: agentPeekWidth, height: vm.effectiveClosedNotchHeight)
                       } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .agent) && vm.notchState == .closed {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(.opacity)
                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                           MusicLiveActivity()
                               .frame(alignment: .center)
+                      } else if coordinator.showsAgentWorkingIndicator, let event = coordinator.agentActivityQueue.currentEvent, vm.notchState == .closed {
+                          AgentActivityView(event: event, count: coordinator.agentActivityQueue.visibleCount, notchWidth: vm.closedNotchSize.width) {
+                              coordinator.focusAgentActivity(id: event.id)
+                          }
+                              .frame(height: max(22, vm.effectiveClosedNotchHeight))
                       } else if !coordinator.expandingView.show && vm.notchState == .closed && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace] && !vm.hideOnClosed  {
                           BoringFaceAnimation()
                        } else if vm.notchState == .open {
@@ -319,12 +317,17 @@ struct ContentView: View {
                            Rectangle().fill(.clear).frame(width: vm.closedNotchSize.width - 20, height: vm.effectiveClosedNotchHeight)
                        }
 
-                      if coordinator.showsAgentActivity, let event = coordinator.agentActivityQueue.currentEvent, event.state != .working, vm.notchState == .closed {
+                      if coordinator.showsAttentionAgentPeek, let event = coordinator.agentActivityQueue.currentEvent, vm.notchState == .closed {
                           AgentActivityView(event: event, count: coordinator.agentActivityQueue.visibleCount, notchWidth: vm.closedNotchSize.width) {
                               coordinator.focusAgentActivity(id: event.id)
                           }
                               .frame(width: agentPeekWidth)
                               .transition(.opacity)
+                              // Idle expiry starts only once the peek is actually rendered;
+                              // keyed on id+state so same-id waiting -> idle re-marks while mounted.
+                              .task(id: "\(event.id)|\(event.state.rawValue)") {
+                                  ExternalNotifyServer.shared.markPresented(id: event.id)
+                              }
                       } else if coordinator.sneakPeek.show {
                           if (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (coordinator.sneakPeek.type != .agent) && !Defaults[.inlineHUD] && vm.notchState == .closed {
                               SystemEventIndicatorModifier(

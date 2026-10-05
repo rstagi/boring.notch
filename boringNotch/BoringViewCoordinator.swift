@@ -104,8 +104,19 @@ class BoringViewCoordinator: ObservableObject {
     private var agentActivityCancellable: AnyCancellable?
     @Published private(set) var agentActivityQueue = AgentActivityQueue()
 
-    var showsAgentActivity: Bool {
-        agentActivityQueue.currentEvent != nil && (!sneakPeek.show || sneakPeek.type == .agent)
+    /// Single source of truth for "attention agent peek is on screen" (caller adds notch-closed check).
+    var showsAttentionAgentPeek: Bool {
+        guard let event = agentActivityQueue.currentEvent, event.state != .working else { return false }
+        return sneakPeek.show && sneakPeek.type == .agent && !showsBatteryExpandingView
+    }
+
+    /// Working indicator is ambient: shown only when no peek is active.
+    var showsAgentWorkingIndicator: Bool {
+        agentActivityQueue.currentEvent?.state == .working && !sneakPeek.show
+    }
+
+    private var showsBatteryExpandingView: Bool {
+        expandingView.show && expandingView.type == .battery && Defaults[.showPowerStatusNotifications]
     }
 
     func focusAgentActivity(id: String) {
@@ -119,13 +130,7 @@ class BoringViewCoordinator: ObservableObject {
             .sink { [weak self] queue in
                 guard let self else { return }
                 self.agentActivityQueue = queue
-                if queue.currentEvent != nil {
-                    if !self.sneakPeek.show || self.sneakPeek.type == .agent {
-                        self.toggleSneakPeek(status: true, type: .agent)
-                    }
-                } else if self.sneakPeek.type == .agent {
-                    self.toggleSneakPeek(status: false, type: .agent)
-                }
+                self.syncAgentPeek()
             }
         // Perform migration from name-based to UUID-based storage
         if preferredScreenUUID == nil, let legacyName = legacyPreferredScreenName {
@@ -230,6 +235,17 @@ class BoringViewCoordinator: ObservableObject {
         }
     }
 
+    /// Asserts the .agent peek only for attention states; working never holds the transient channel.
+    private func syncAgentPeek() {
+        if let event = agentActivityQueue.currentEvent, event.state != .working {
+            if !sneakPeek.show || sneakPeek.type == .agent {
+                toggleSneakPeek(status: true, type: .agent)
+            }
+        } else if sneakPeek.show && sneakPeek.type == .agent {
+            toggleSneakPeek(status: false, type: .agent)
+        }
+    }
+
     func toggleSneakPeek(
         status: Bool, type: SneakContentType, duration: TimeInterval = 1.5, value: CGFloat = 0,
         icon: String = ""
@@ -275,6 +291,10 @@ class BoringViewCoordinator: ObservableObject {
                 scheduleSneakPeekHide(after: sneakPeekDuration)
             } else {
                 sneakPeekTask?.cancel()
+            }
+            // A transient peek ended: restore any pending attention agent peek immediately.
+            if oldValue.show && oldValue.type != .agent && !sneakPeek.show {
+                syncAgentPeek()
             }
         }
     }
