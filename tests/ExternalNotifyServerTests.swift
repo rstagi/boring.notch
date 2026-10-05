@@ -11,6 +11,7 @@ struct ExternalNotifyServerTests {
     @MainActor
     static func main() async throws {
         try await focusesSelectedEventAndDismissesIt()
+        try await disablingRemovesSocketAndClearsActivity()
         print("PASS: external notification server")
     }
 
@@ -34,6 +35,28 @@ struct ExternalNotifyServerTests {
             try await Task.sleep(for: .milliseconds(10))
         }
         expect(false, "Click must execute the focus action, regardless of its position")
+    }
+
+    @MainActor
+    static func disablingRemovesSocketAndClearsActivity() async throws {
+        let url = URL(string: "file:.build/agent-activity-tests/toggle.sock")!
+        let server = ExternalNotifyServer(socketURL: url)
+        defer { server.stop() }
+        try server.setEnabled(false)
+        expect(!server.isRunning, "A disabled launch must not start the socket")
+        expect(!FileManager.default.fileExists(atPath: url.path), "A disabled launch must not create the socket")
+        try server.setEnabled(true)
+        expect(server.isRunning, "Enabling must start the receiver")
+        try send(id: "waiting", actions: [], to: url)
+        try await waitUntil { server.activityQueue.currentEvent != nil }
+        try server.setEnabled(false)
+        expect(!server.isRunning, "Disabling must stop the receiver")
+        expect(!FileManager.default.fileExists(atPath: url.path), "Disabling must remove the socket")
+        expect(server.activityQueue.currentEvent == nil, "Disabling must dismiss pending activities")
+        try server.setEnabled(true)
+        try send(id: "new", actions: [], to: url)
+        try await waitUntil { server.activityQueue.currentEvent?.id == "new" }
+        expect(server.activityQueue.events.count == 1, "Re-enabling must accept events without restoring old activities")
     }
 
     static func send(id: String, actions: [[String: String]], to url: URL) throws {

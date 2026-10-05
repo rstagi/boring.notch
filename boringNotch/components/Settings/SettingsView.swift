@@ -160,6 +160,7 @@ struct GeneralSettings: View {
                 }
                 .tint(.effectiveAccent)
                 LaunchAtLogin.Toggle("Launch at login")
+                Defaults.Toggle("External notifications", key: .externalNotifications)
                 Defaults.Toggle(key: .showOnAllDisplays) {
                     Text("Show on all displays")
                 }

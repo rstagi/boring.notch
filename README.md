@@ -107,7 +107,7 @@ brew install --cask TheBoredTeam/boring-notch/boring-notch
 
 ### External notifications (fork)
 
-This fork starts a Unix socket receiver at `~/Library/Application Support/boringNotch/notify.sock` on launch and removes its socket on quit. The directory is user-only (0700), and the socket is user-only (0600). Send one v1 JSON object per line (NDJSON); unknown fields are ignored, unsupported versions and malformed events are rejected. Each line is limited to 64 KiB.
+This fork enables **External notifications** by default. Change it under **Settings → General → System features**. Enabling starts a Unix socket receiver at `~/Library/Application Support/boringNotch/notify.sock`; disabling stops it, removes the socket, and clears queued activities. The setting persists across launches, and quitting removes the socket. The directory is user-only (0700), and the socket is user-only (0600). Send one v1 JSON object per line (NDJSON); unknown fields are ignored, unsupported versions and malformed events are rejected. Each line is limited to 64 KiB.
 
 For a local check with the app running:
 

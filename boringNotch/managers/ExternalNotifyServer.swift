@@ -42,6 +42,11 @@ final class ExternalNotifyServer: ObservableObject {
         activityQueue.dismiss(id: id, at: Date())
     }
 
+    func setEnabled(_ enabled: Bool) throws {
+        if enabled { try start() }
+        else { stop() }
+    }
+
     func start() throws {
         guard listener == nil else { return }
         let generation = UUID()

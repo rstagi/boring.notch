@@ -67,12 +67,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var isScreenLocked: Bool = false
     private var windowScreenDidChangeObserver: Any?
     private var dragDetectors: [String: DragDetector] = [:] // UUID -> DragDetector
+    private var externalNotificationsCancellable: AnyCancellable?
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        externalNotificationsCancellable?.cancel()
         ExternalNotifyServer.shared.stop()
         NotificationCenter.default.removeObserver(self)
         if let observer = screenLockedObserver {
@@ -281,11 +283,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        do {
-            try ExternalNotifyServer.shared.start()
-        } catch {
-            NSLog("External notifications could not start: %@", error.localizedDescription)
-        }
+        externalNotificationsCancellable = Defaults.publisher(.externalNotifications)
+            .sink { _ in
+                Task { @MainActor in
+                    do {
+                        try ExternalNotifyServer.shared.setEnabled(Defaults[.externalNotifications])
+                    } catch {
+                        NSLog("External notifications could not start: %@", error.localizedDescription)
+                    }
+                }
+            }
 
         NotificationCenter.default.addObserver(
             self,
