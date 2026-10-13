@@ -19,6 +19,10 @@ struct AgentActivityQueueTests {
         try appliesMissingSeqAsNewest()
         try dropsStaleSeqAfterDismiss()
         try decodesOptionalSeq()
+        try closedRemovesTheTab()
+        try dropsStaleClosed()
+        try closedForUnknownIDBlocksOlderEvents()
+        try reportsWhetherEventApplied()
         print("PASS: agent activity queue")
     }
 
@@ -218,6 +222,44 @@ struct AgentActivityQueueTests {
         let withoutSeq = try event("a", state: "idle")
         expect(withSeq.seq == 1_791_182_700_123_456, "seq must decode")
         expect(withoutSeq.seq == nil, "seq must be optional")
+    }
+
+    static func closedRemovesTheTab() throws {
+        var queue = AgentActivityQueue()
+        let now = Date(timeIntervalSince1970: 100)
+        queue.receive(try event("a", state: "waiting", seq: 1), at: now)
+        queue.receive(try event("b", state: "waiting", seq: 1), at: now)
+        queue.receive(try event("a", state: "closed", seq: 2), at: now)
+        expect(queue.events.map(\.id) == ["b"], "closed must remove only its tab")
+        expect(queue.currentEvent?.id == "b", "closed must move the peek to the next tab")
+    }
+
+    static func dropsStaleClosed() throws {
+        var queue = AgentActivityQueue()
+        let now = Date(timeIntervalSince1970: 100)
+        queue.receive(try event("a", state: "waiting", seq: 5), at: now)
+        queue.receive(try event("a", state: "closed", seq: 4), at: now)
+        expect(queue.events.count == 1, "an older closed must not remove a newer notification")
+    }
+
+    static func closedForUnknownIDBlocksOlderEvents() throws {
+        var queue = AgentActivityQueue()
+        let now = Date(timeIntervalSince1970: 100)
+        queue.receive(try event("a", state: "closed", seq: 10), at: now)
+        expect(queue.events.isEmpty, "closed never shows anything")
+        queue.receive(try event("a", state: "waiting", seq: 9), at: now)
+        expect(queue.events.isEmpty, "events older than a closed must stay dropped")
+    }
+
+    static func reportsWhetherEventApplied() throws {
+        var queue = AgentActivityQueue()
+        let now = Date(timeIntervalSince1970: 100)
+        let fresh = try event("a", state: "waiting", seq: 2)
+        let stale = try event("a", state: "idle", seq: 1)
+        let closed = try event("a", state: "closed", seq: 3)
+        expect(queue.receive(fresh, at: now), "new event applies")
+        expect(!queue.receive(stale, at: now), "stale event reports not applied")
+        expect(queue.receive(closed, at: now), "closed applies")
     }
 
     static func event(_ id: String, state: String, message: String = "Needs input", seq: Int64? = nil) throws -> ExternalNotifyEvent {

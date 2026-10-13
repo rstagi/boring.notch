@@ -13,6 +13,7 @@ import LaunchAtLogin
 import Sparkle
 import SwiftUI
 import SwiftUIIntrospect
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @State private var selectedTab = "General"
@@ -161,6 +162,9 @@ struct GeneralSettings: View {
                 .tint(.effectiveAccent)
                 LaunchAtLogin.Toggle("Launch at login")
                 Defaults.Toggle("External notifications", key: .externalNotifications)
+                AgentSoundPicker(title: "Done sound", cue: .done)
+                AgentSoundPicker(title: "Needs input sound", cue: .waiting)
+                AgentSoundVolumeSlider()
                 Defaults.Toggle(key: .showOnAllDisplays) {
                     Text("Show on all displays")
                 }
@@ -1797,4 +1801,72 @@ func warningBadge(_ text: String, _ description: String) -> some View {
 
 #Preview {
     HUD()
+}
+
+// MARK: - External notification sounds (fork)
+
+/// Picks the sound for one cue: none, the bundled ws cue, a macOS sound, or a custom file.
+private struct AgentSoundPicker: View {
+    let title: String
+    let cue: AgentSound.Cue
+    @Default private var choice: String
+
+    init(title: String, cue: AgentSound.Cue) {
+        self.title = title
+        self.cue = cue
+        _choice = Default(cue.key)
+    }
+
+    var body: some View {
+        HStack {
+            Picker(title, selection: Binding(get: { choice }, set: select)) {
+                Text("None").tag("none")
+                Text("ws (default)").tag("ws")
+                if choice.hasPrefix("custom:") {
+                    Text("Custom file").tag(choice)
+                }
+                Divider()
+                ForEach(AgentSound.systemSoundNames, id: \.self) { name in
+                    Text(name).tag("system:\(name)")
+                }
+                Divider()
+                Text("Choose file…").tag("pick")
+            }
+            Button {
+                AgentSound.play(cue)
+            } label: {
+                Image(systemName: "play.fill")
+            }
+            .buttonStyle(.borderless)
+            .disabled(choice == "none")
+            .help("Preview")
+        }
+    }
+
+    private func select(_ value: String) {
+        guard value == "pick" else {
+            choice = value
+            AgentSound.play(cue)
+            return
+        }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.audio]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url,
+              let imported = try? AgentSound.importCustom(url, for: cue) else { return }
+        choice = imported
+        AgentSound.play(cue)
+    }
+}
+
+private struct AgentSoundVolumeSlider: View {
+    @Default(.agentSoundVolume) private var volume
+
+    var body: some View {
+        Slider(value: $volume, in: 0...1) {
+            Text("Notification volume")
+        } onEditingChanged: { editing in
+            if !editing { AgentSound.play(.waiting) }
+        }
+    }
 }

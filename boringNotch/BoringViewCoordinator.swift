@@ -125,7 +125,12 @@ class BoringViewCoordinator: ObservableObject {
         }
     }
 
+    func dismissAgentActivity(id: String) {
+        ExternalNotifyServer.shared.dismiss(id: id)
+    }
+
     private init() {
+        ExternalNotifyServer.shared.onApply = { event in AgentSound.play(for: event) }
         agentActivityCancellable = ExternalNotifyServer.shared.$activityQueue
             .sink { [weak self] queue in
                 guard let self else { return }
@@ -338,5 +343,72 @@ class BoringViewCoordinator: ObservableObject {
     
     func showEmpty() {
         currentView = .home
+    }
+}
+
+// MARK: - External notification sounds (fork)
+
+/// Plays the sound chosen in Settings for an applied event's semantic `sound` key.
+@MainActor
+enum AgentSound {
+    enum Cue: String, CaseIterable {
+        case done, waiting
+        var key: Defaults.Key<String> { self == .done ? .agentDoneSound : .agentWaitingSound }
+    }
+
+    private static var current: NSSound?
+
+    static func play(for event: ExternalNotifyEvent) {
+        guard let cue = Cue(rawValue: event.sound) else { return }
+        play(cue)
+    }
+
+    static func play(_ cue: Cue, choice: String? = nil) {
+        guard let sound = sound(for: choice ?? Defaults[cue.key], cue: cue) else { return }
+        current?.stop()
+        sound.volume = Float(Defaults[.agentSoundVolume])
+        current = sound
+        sound.play()
+    }
+
+    /// Names of the macOS alert sounds (`/System/Library/Sounds`).
+    static var systemSoundNames: [String] {
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: "/System/Library/Sounds")) ?? []
+        return files.map { ($0 as NSString).deletingPathExtension }.sorted()
+    }
+
+    /// Copies a user-picked file into the app container, so playback needs no bookmark.
+    static func importCustom(_ url: URL, for cue: Cue) throws -> String {
+        let directory = try customDirectory()
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        where name.hasPrefix("agent-\(cue.rawValue).") {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(name))
+        }
+        let name = "agent-\(cue.rawValue).\(url.pathExtension.isEmpty ? "sound" : url.pathExtension)"
+        try FileManager.default.copyItem(at: url, to: directory.appendingPathComponent(name))
+        return "custom:\(name)"
+    }
+
+    private static func sound(for choice: String, cue: Cue) -> NSSound? {
+        if choice == "none" { return nil }
+        if choice == "ws" {
+            return NSDataAsset(name: "agent-\(cue.rawValue)").flatMap { NSSound(data: $0.data) }
+        }
+        if choice.hasPrefix("system:") {
+            return NSSound(named: NSSound.Name(String(choice.dropFirst("system:".count))))
+        }
+        if choice.hasPrefix("custom:"), let directory = try? customDirectory() {
+            let url = directory.appendingPathComponent(String(choice.dropFirst("custom:".count)))
+            return NSSound(contentsOf: url, byReference: false)
+        }
+        return nil
+    }
+
+    private static func customDirectory() throws -> URL {
+        let directory = try FileManager.default.url(
+            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("AgentSounds", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
     }
 }

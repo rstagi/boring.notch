@@ -12,6 +12,8 @@ struct ExternalNotifyServerTests {
     static func main() async throws {
         try await focusesSelectedEventAndDismissesIt()
         try await disablingRemovesSocketAndClearsActivity()
+        try await dismissesWithoutFocusing()
+        try await reportsOnlyAppliedEvents()
         print("PASS: external notification server")
     }
 
@@ -59,13 +61,44 @@ struct ExternalNotifyServerTests {
         expect(server.activityQueue.events.count == 1, "Re-enabling must accept events without restoring old activities")
     }
 
-    static func send(id: String, actions: [[String: String]], to url: URL) throws {
-        let payload: [String: Any] = [
-            "v": 1, "id": id, "source": "ws", "state": "waiting", "prev": "working",
+    @MainActor
+    static func dismissesWithoutFocusing() async throws {
+        let url = URL(string: "file:.build/agent-activity-tests/dismiss.sock")!
+        let server = ExternalNotifyServer(socketURL: url)
+        try server.start()
+        defer { server.stop() }
+        try send(id: "a", actions: [], to: url)
+        try send(id: "b", actions: [], to: url)
+        try await waitUntil { server.activityQueue.events.count == 2 }
+        server.dismiss(id: "a")
+        expect(server.activityQueue.events.map(\.id) == ["b"], "Dismiss must remove only the selected tab")
+    }
+
+    @MainActor
+    static func reportsOnlyAppliedEvents() async throws {
+        let url = URL(string: "file:.build/agent-activity-tests/applied.sock")!
+        let server = ExternalNotifyServer(socketURL: url)
+        var applied: [String] = []
+        server.onApply = { applied.append("\($0.id):\($0.state.rawValue)") }
+        try server.start()
+        defer { server.stop() }
+        try send(id: "a", actions: [], state: "waiting", seq: 2, to: url)
+        try await waitUntil { applied.count == 1 }
+        try send(id: "a", actions: [], state: "idle", seq: 1, to: url)
+        try send(id: "a", actions: [], state: "closed", seq: 3, to: url)
+        try await waitUntil { applied.count == 2 }
+        expect(applied == ["a:waiting", "a:closed"], "Only applied events may be reported (no sound for stale ones)")
+        expect(server.activityQueue.events.isEmpty, "closed must clear the tab")
+    }
+
+    static func send(id: String, actions: [[String: String]], state: String = "waiting", seq: Int64? = nil, to url: URL) throws {
+        var payload: [String: Any] = [
+            "v": 1, "id": id, "source": "ws", "state": state, "prev": "working",
             "title": "ws", "message": "Needs input", "detail": "", "agent": "codex",
             "repo": "api", "branch": "main", "focused": false, "sound": "",
             "actions": actions, "ts": 100
         ]
+        if let seq { payload["seq"] = seq }
         var data = try JSONSerialization.data(withJSONObject: payload)
         data.append(0x0A)
         let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)

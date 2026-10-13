@@ -21,11 +21,16 @@ struct AgentActivityQueue {
     var visibleCount: Int { visibleEvents.count }
 
     /// Events may arrive out of order; one whose `seq` is <= the last applied `seq` for its ID is dropped.
-    /// Events without `seq` are treated as newest.
-    mutating func receive(_ event: ExternalNotifyEvent, at date: Date) {
+    /// Events without `seq` are treated as newest. `closed` removes the ID. Returns whether it applied.
+    @discardableResult
+    mutating func receive(_ event: ExternalNotifyEvent, at date: Date) -> Bool {
         if let seq = event.seq {
-            if let last = lastAppliedSeq[event.id], seq <= last { return }
+            if let last = lastAppliedSeq[event.id], seq <= last { return false }
             lastAppliedSeq[event.id] = seq
+        }
+        if event.state == .closed {
+            dismiss(id: event.id, at: date)
+            return true
         }
         if let index = events.firstIndex(where: { $0.id == event.id }) {
             events[index] = event
@@ -35,6 +40,7 @@ struct AgentActivityQueue {
         revisions[event.id, default: 0] += 1
         clearTimers(for: event.id)
         currentID = currentEvent?.id
+        return true
     }
 
     func revision(of id: String) -> Int { revisions[id] ?? 0 }

@@ -81,7 +81,7 @@ struct ContentView: View {
     }
 
     private var agentPeekWidth: CGFloat {
-        max(vm.closedNotchSize.width - 20, min(420, max(300, vm.closedNotchSize.width + 100)))
+        max(vm.closedNotchSize.width - 20, min(540, max(460, vm.closedNotchSize.width + 260)))
     }
 
     var body: some View {
@@ -319,9 +319,9 @@ struct ContentView: View {
 
                       if coordinator.showsAttentionAgentPeek, let event = coordinator.agentActivityQueue.currentEvent, vm.notchState == .closed, !vm.hideOnClosed {
                           let revision = coordinator.agentActivityQueue.revision(of: event.id)
-                          AgentActivityView(event: event, count: coordinator.agentActivityQueue.visibleCount, notchWidth: vm.closedNotchSize.width) {
-                              coordinator.focusAgentActivity(id: event.id)
-                          }
+                          AgentActivityView(event: event, count: coordinator.agentActivityQueue.visibleCount, notchWidth: vm.closedNotchSize.width,
+                                            onFocus: { coordinator.focusAgentActivity(id: event.id) },
+                                            onDismiss: { coordinator.dismissAgentActivity(id: event.id) })
                               .frame(width: agentPeekWidth)
                               .transition(.opacity)
                               // Idle expiry counts only rendered time: keyed on id+revision so

@@ -3,7 +3,8 @@ import Foundation
 /// The v1 adapter payload. Unknown JSON fields are ignored by Codable.
 struct ExternalNotifyEvent: Codable, Equatable, Identifiable, Sendable {
     enum State: String, Codable, Sendable {
-        case working, idle, waiting
+        /// `closed`: the producer dismissed the tab (seen or agent exited); never displayed.
+        case working, idle, waiting, closed
     }
 
     struct Action: Codable, Equatable, Identifiable, Sendable {

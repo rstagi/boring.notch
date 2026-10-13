@@ -18,6 +18,8 @@ final class ExternalNotifyServer: ObservableObject {
     @Published private(set) var activityQueue = AgentActivityQueue()
     @Published private(set) var isRunning = false
     let socketURL: URL
+    /// Called for each event the queue applied (not stale), e.g. to play its sound.
+    var onApply: ((ExternalNotifyEvent) -> Void)?
 
     private nonisolated static let logger = os.Logger(subsystem: "theboringteam.boringnotch", category: "ExternalNotify")
     private var listener: ExternalNotifySocketListener?
@@ -38,6 +40,11 @@ final class ExternalNotifyServer: ObservableObject {
                 }
             }
         }
+        activityQueue.dismiss(id: id, at: Date())
+    }
+
+    /// Removes the tab's notification without running its focus action.
+    func dismiss(id: String) {
         activityQueue.dismiss(id: id, at: Date())
     }
 
@@ -67,7 +74,7 @@ final class ExternalNotifyServer: ObservableObject {
         let listener = ExternalNotifySocketListener(socketURL: socketURL) { [weak self] event in
             Task { @MainActor in
                 guard let self, self.isRunning, self.generation == generation else { return }
-                self.activityQueue.receive(event, at: Date())
+                if self.activityQueue.receive(event, at: Date()) { self.onApply?(event) }
                 self.scheduleActivityCycle()
                 Self.logger.info("Decoded notification: \(event.id, privacy: .public) \(event.state.rawValue, privacy: .public)")
             }
