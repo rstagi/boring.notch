@@ -67,12 +67,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var isScreenLocked: Bool = false
     private var windowScreenDidChangeObserver: Any?
     private var dragDetectors: [String: DragDetector] = [:] // UUID -> DragDetector
+    private var externalNotificationsCancellable: AnyCancellable?
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        externalNotificationsCancellable?.cancel()
+        ExternalNotifyServer.shared.stop()
         NotificationCenter.default.removeObserver(self)
         if let observer = screenLockedObserver {
             DistributedNotificationCenter.default().removeObserver(observer)
@@ -280,6 +283,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        externalNotificationsCancellable = Defaults.publisher(.externalNotifications)
+            .sink { _ in
+                Task { @MainActor in
+                    do {
+                        try ExternalNotifyServer.shared.setEnabled(Defaults[.externalNotifications])
+                    } catch {
+                        NSLog("External notifications could not start: %@", error.localizedDescription)
+                    }
+                }
+            }
 
         NotificationCenter.default.addObserver(
             self,
@@ -358,7 +371,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.coordinator.toggleExpandingView(status: newStatus, type: .music)
             } else {
                 self.coordinator.toggleSneakPeek(
-                    status: !self.coordinator.sneakPeek.show,
+                    status: !(self.coordinator.sneakPeek.show && self.coordinator.sneakPeek.type == .music),
                     type: .music,
                     duration: 3.0
                 )

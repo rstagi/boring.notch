@@ -11,6 +11,20 @@ final class XPCHelperClient: NSObject {
     private var connection: NSXPCConnection?
     private var lastKnownAuthorization: Bool?
     private var monitoringTask: Task<Void, Never>?
+
+    nonisolated func runExternalNotificationAction(_ command: String) async throws {
+        let service = await MainActor.run { ensureRemoteService() }
+        let launched: Bool = try await service.withContinuation { service, continuation in
+            service.runExternalNotificationAction(command) { success in
+                continuation.resume(returning: success)
+            }
+        }
+        guard launched else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(EIO), userInfo: [
+                NSLocalizedDescriptionKey: "External notification action could not launch"
+            ])
+        }
+    }
     
     deinit {
         connection?.invalidate()
@@ -246,5 +260,4 @@ final class XPCHelperClient: NSObject {
 extension Notification.Name {
     static let accessibilityAuthorizationChanged = Notification.Name("accessibilityAuthorizationChanged")
 }
-
 

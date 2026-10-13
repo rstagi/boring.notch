@@ -18,6 +18,7 @@ enum SneakContentType {
     case mic
     case battery
     case download
+    case agent
 }
 
 struct sneakPeek {
@@ -100,8 +101,42 @@ class BoringViewCoordinator: ObservableObject {
     @Published var optionKeyPressed: Bool = true
     private var accessibilityObserver: Any?
     private var hudReplacementCancellable: AnyCancellable?
+    private var agentActivityCancellable: AnyCancellable?
+    @Published private(set) var agentActivityQueue = AgentActivityQueue()
+
+    /// Single source of truth for "attention agent peek is on screen" (caller adds notch-closed check).
+    var showsAttentionAgentPeek: Bool {
+        guard let event = agentActivityQueue.currentEvent, event.state != .working else { return false }
+        return sneakPeek.show && sneakPeek.type == .agent && !showsBatteryExpandingView
+    }
+
+    /// Working indicator is ambient: shown only when no peek is active.
+    var showsAgentWorkingIndicator: Bool {
+        agentActivityQueue.currentEvent?.state == .working && !sneakPeek.show
+    }
+
+    private var showsBatteryExpandingView: Bool {
+        expandingView.show && expandingView.type == .battery && Defaults[.showPowerStatusNotifications]
+    }
+
+    func focusAgentActivity(id: String) {
+        ExternalNotifyServer.shared.focus(id: id) { command in
+            try await XPCHelperClient.shared.runExternalNotificationAction(command)
+        }
+    }
+
+    func dismissAgentActivity(id: String) {
+        ExternalNotifyServer.shared.dismiss(id: id)
+    }
 
     private init() {
+        ExternalNotifyServer.shared.onApply = { event in AgentSound.play(for: event) }
+        agentActivityCancellable = ExternalNotifyServer.shared.$activityQueue
+            .sink { [weak self] queue in
+                guard let self else { return }
+                self.agentActivityQueue = queue
+                self.syncAgentPeek()
+            }
         // Perform migration from name-based to UUID-based storage
         if preferredScreenUUID == nil, let legacyName = legacyPreferredScreenName {
             // Try to find screen by name and migrate to UUID
@@ -205,24 +240,31 @@ class BoringViewCoordinator: ObservableObject {
         }
     }
 
+    /// Asserts the .agent peek only for attention states; working never holds the transient channel.
+    private func syncAgentPeek() {
+        if let event = agentActivityQueue.currentEvent, event.state != .working {
+            if sneakPeek.show && sneakPeek.type == .agent { return }
+            if !sneakPeek.show {
+                toggleSneakPeek(status: true, type: .agent)
+            }
+        } else if sneakPeek.show && sneakPeek.type == .agent {
+            toggleSneakPeek(status: false, type: .agent)
+        }
+    }
+
     func toggleSneakPeek(
         status: Bool, type: SneakContentType, duration: TimeInterval = 1.5, value: CGFloat = 0,
         icon: String = ""
     ) {
         sneakPeekDuration = duration
-        if type != .music {
+        if type != .music && type != .agent {
             // close()
             if !Defaults[.hudReplacement] {
                 return
             }
         }
-        Task { @MainActor in
-            withAnimation(.smooth) {
-                self.sneakPeek.show = status
-                self.sneakPeek.type = type
-                self.sneakPeek.value = value
-                self.sneakPeek.icon = icon
-            }
+        withAnimation(.smooth) {
+            sneakPeek = .init(show: status, type: type, value: value, icon: icon)
         }
 
         if type == .mic {
@@ -251,10 +293,15 @@ class BoringViewCoordinator: ObservableObject {
 
     @Published var sneakPeek: sneakPeek = .init() {
         didSet {
-            if sneakPeek.show {
+            if sneakPeek.show && sneakPeek.type != .agent {
                 scheduleSneakPeekHide(after: sneakPeekDuration)
             } else {
                 sneakPeekTask?.cancel()
+            }
+            // Any shown peek ended (transient expiry or close()): restore a pending attention
+            // agent peek immediately. Terminates: syncAgentPeek only re-shows, never re-hides here.
+            if oldValue.show && !sneakPeek.show {
+                syncAgentPeek()
             }
         }
     }
@@ -296,5 +343,72 @@ class BoringViewCoordinator: ObservableObject {
     
     func showEmpty() {
         currentView = .home
+    }
+}
+
+// MARK: - External notification sounds (fork)
+
+/// Plays the sound chosen in Settings for an applied event's semantic `sound` key.
+@MainActor
+enum AgentSound {
+    enum Cue: String, CaseIterable {
+        case done, waiting
+        var key: Defaults.Key<String> { self == .done ? .agentDoneSound : .agentWaitingSound }
+    }
+
+    private static var current: NSSound?
+
+    static func play(for event: ExternalNotifyEvent) {
+        guard let cue = Cue(rawValue: event.sound) else { return }
+        play(cue)
+    }
+
+    static func play(_ cue: Cue, choice: String? = nil) {
+        guard let sound = sound(for: choice ?? Defaults[cue.key], cue: cue) else { return }
+        current?.stop()
+        sound.volume = Float(Defaults[.agentSoundVolume])
+        current = sound
+        sound.play()
+    }
+
+    /// Names of the macOS alert sounds (`/System/Library/Sounds`).
+    static var systemSoundNames: [String] {
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: "/System/Library/Sounds")) ?? []
+        return files.map { ($0 as NSString).deletingPathExtension }.sorted()
+    }
+
+    /// Copies a user-picked file into the app container, so playback needs no bookmark.
+    static func importCustom(_ url: URL, for cue: Cue) throws -> String {
+        let directory = try customDirectory()
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        where name.hasPrefix("agent-\(cue.rawValue).") {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(name))
+        }
+        let name = "agent-\(cue.rawValue).\(url.pathExtension.isEmpty ? "sound" : url.pathExtension)"
+        try FileManager.default.copyItem(at: url, to: directory.appendingPathComponent(name))
+        return "custom:\(name)"
+    }
+
+    private static func sound(for choice: String, cue: Cue) -> NSSound? {
+        if choice == "none" { return nil }
+        if choice == "ws" {
+            return NSDataAsset(name: "agent-\(cue.rawValue)").flatMap { NSSound(data: $0.data) }
+        }
+        if choice.hasPrefix("system:") {
+            return NSSound(named: NSSound.Name(String(choice.dropFirst("system:".count))))
+        }
+        if choice.hasPrefix("custom:"), let directory = try? customDirectory() {
+            let url = directory.appendingPathComponent(String(choice.dropFirst("custom:".count)))
+            return NSSound(contentsOf: url, byReference: false)
+        }
+        return nil
+    }
+
+    private static func customDirectory() throws -> URL {
+        let directory = try FileManager.default.url(
+            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("AgentSounds", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
     }
 }

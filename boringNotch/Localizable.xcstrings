@@ -101,6 +101,9 @@
         }
       }
     },
+    "  %@" : {
+
+    },
     " – %lld" : {
       "localizations" : {
         "ar" : {
@@ -900,6 +903,9 @@
           }
         }
       }
+    },
+    "%lld tabs" : {
+
     },
     "%lld%%" : {
       "localizations" : {
@@ -2201,6 +2207,9 @@
           }
         }
       }
+    },
+    "Agent working" : {
+
     },
     "All-day" : {
       "localizations" : {
@@ -5002,6 +5011,9 @@
         }
       }
     },
+    "Choose file…" : {
+
+    },
     "Choose which service to use when sharing files from the shelf. Click the shelf button to select files, or drag files onto it to share immediately." : {
       "localizations" : {
         "ar" : {
@@ -6402,6 +6414,9 @@
         }
       }
     },
+    "Custom file" : {
+
+    },
     "Custom height" : {
       "localizations" : {
         "ar" : {
@@ -7404,6 +7419,9 @@
           }
         }
       }
+    },
+    "Dismiss" : {
+
     },
     "Download" : {
       "localizations" : {
@@ -9607,6 +9625,9 @@
           }
         }
       }
+    },
+    "Focus agent tab and dismiss notification" : {
+
     },
     "Full screen behavior" : {
       "localizations" : {
@@ -15010,6 +15031,9 @@
         }
       }
     },
+    "None" : {
+
+    },
     "Not Now" : {
       "localizations" : {
         "ar" : {
@@ -15509,6 +15533,9 @@
           }
         }
       }
+    },
+    "Notification volume" : {
+
     },
     "Open Calendar Settings" : {
       "localizations" : {
@@ -16409,6 +16436,9 @@
           }
         }
       }
+    },
+    "Preview" : {
+
     },
     "Progress bar style" : {
       "localizations" : {
@@ -23214,6 +23244,9 @@
           }
         }
       }
+    },
+    "ws (default)" : {
+
     },
     "You can now enjoy the app. If you want to tweak things further, you can always visit the settings." : {
       "localizations" : {

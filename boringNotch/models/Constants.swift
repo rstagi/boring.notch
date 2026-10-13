@@ -138,6 +138,13 @@ extension Defaults.Keys {
         default: MusicControlButton.defaultLayout.count
     )
     
+    // MARK: External notifications (fork)
+    static let externalNotifications = Key<Bool>("externalNotifications", default: true)
+    /// Sound choice per cue: "none", "ws" (bundled), "system:<name>" or "custom:<file>" (see AgentSound).
+    static let agentDoneSound = Key<String>("agentDoneSound", default: "ws")
+    static let agentWaitingSound = Key<String>("agentWaitingSound", default: "ws")
+    static let agentSoundVolume = Key<Double>("agentSoundVolume", default: 0.8)
+
     // MARK: Battery
     static let showPowerStatusNotifications = Key<Bool>("showPowerStatusNotifications", default: true)
     static let showBatteryIndicator = Key<Bool>("showBatteryIndicator", default: true)
